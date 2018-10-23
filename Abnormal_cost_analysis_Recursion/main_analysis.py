@@ -17,7 +17,7 @@ if __name__ == "__main__":
     
     ###数据库配置    
     config = {
-              'host': '131.232.81.34',
+              'host': '132.232.81.34',
               'user':'root',
               'password':'root1234',
               'database':'kndb'
@@ -35,13 +35,16 @@ if __name__ == "__main__":
     bsa = Bom_alteration.BomStrucAlteration(conn)
     
     ###定义递归对比
-    def finance_analysis(material,version_1,version_2,use_1,use_2):
-        use_total_cost = cost_mining.total_cost_check(material,version_1,version_2,use_1,use_2)
+    def finance_analysis(material,version_1,version_2,use_1,use_2,lost_1,lost_2):
+        
+        use_total_cost = cost_mining.total_cost_check(material,version_1,version_2,use_1,use_2,lost_1,lost_2)
+        
         if use_total_cost:
+                          
+            class_cost = cost_mining.check_unitcost_menge_ausch(material,version_1,version_2,use_1,use_2,lost_1,lost_2)
             
-            unit_total_cost = cost_mining.total_cost_check(material,version_1,version_2)    
-            
-            if unit_total_cost:
+            if class_cost:
+                
                 cost_mining.cost_stage_component_check(material,version_1,version_2)
                 
                 cost_accumulated_value = cost_mining.cost_accumulated_component_diff(material,version_1,version_2)
@@ -56,15 +59,15 @@ if __name__ == "__main__":
                     
                     for i_code in bom_same:
                         
-                        u_1 = cost_mining.use_lost_cat(material,i_code,version_1)
-                        u_2 = cost_mining.use_lost_cat(material,i_code,version_2)
+                        u_1,l_1 = cost_mining.use_lost_cat(material,i_code,version_1)
+                        u_2,l_2 = cost_mining.use_lost_cat(material,i_code,version_2)
                         
-                        finance_analysis(i_code,version_1,version_2,u_1,u_2)
+                        finance_analysis(i_code,version_1,version_2,u_1,u_2,l_1,l_2)
        
     #==========================================================================
     
     ###执行
-    init_cost_result = finance_analysis(material_code,bom_version_1,bom_version_2,1,1)
+    init_cost_result = finance_analysis(material_code,bom_version_1,bom_version_2,1,1,0,0)
 
     conn.close()   
     
