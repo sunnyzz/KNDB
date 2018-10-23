@@ -26,12 +26,37 @@ class BomStrucAlteration(object):
         
         if inter == union :
             pass
-            #print('物料%s %s和%s阶段bom结构一致未改变'%(code,v1,v2))
+            #print('物料%s 阶段%s>>>%sbom结构未改变'%(code,v1,v2))
         elif len(difference2) != 0:
-            print('物料%s 阶段%s有%s无(删减项):'%(code,v1,v2),difference2)
+            print('物料%s 阶段%s>>>%s子物料删减项:'%(code,v1,v2),difference2)
                  
             if len(difference1) != 0:
-                print('物料%s 阶段%s无%s有(增加项);'%(code,v1,v2),difference1)  
+                print('物料%s 阶段%s>>>%s子物料增加项:'%(code,v1,v2),difference1)  
                 
         return difference1,inter
+
+    def processescat(self,code,v):
+        cursor = self.conn.cursor()
+        sql = 'SELECT process_name FROM product_process_maintenance WHERE matnr = "%s" AND version_number = "%s"'%(code,v)
+        cursor.execute(sql)
+        processes = set([each[0] for each in cursor.fetchall()])     
+        return processes
+    
+    def process_check(self,code,v1,v2):
+        processes_1 = self.processescat(code,v1)
+        processes_2 = self.processescat(code,v2)
+        inter = processes_1.intersection(processes_2)    #两个序列的交集
+        union = processes_2.union(processes_2)           #两个序列的并集
+        difference2 = processes_1.difference(processes_2)#1存在2无序列
+        difference1 = processes_2.difference(processes_1)#2存在1无序列
         
+        if inter == union :
+            pass
+            #print('物料%s 阶段%s>>>%sbom结构未改变'%(code,v1,v2))
+        elif len(difference2) != 0:
+            print('物料%s 阶段%s>>>%s工序删减项:'%(code,v1,v2),difference2)
+                 
+            if len(difference1) != 0:
+                print('物料%s 阶段%s>>>%s工序增加项:'%(code,v1,v2),difference1)  
+                
+        return difference1,inter

@@ -33,18 +33,18 @@ class CostMining(object):
             cursor.close()
         return coca
     
-    #总成比对比结果
-    def total_cost_check(self,code,v1,v2,use_number_1=1,use_number_2=1,lostrat_1=0,lostrat_2=0):
+    #总成本对比结果
+    def total_cost_check(self,code,v1,v2,use_number_1=1,use_number_2=1,lostrat_1=0):
         cost1 = self.cost_cat(code,v1,use_number_1,lostrat_1)
-        cost2 = self.cost_cat(code,v2,use_number_2,lostrat_2)
+        cost2 = self.cost_cat(code,v2,use_number_2,0)
         diff_cost = abs(cost1-cost2)
         
-        notif_red = "单位物料%s总成本降低%.3f" if use_number_1==use_number_2==1 else "物料%s总成本降低%.3f"
+        #notif_red = "单位物料%s总成本降低%.3f" if use_number_1==use_number_2==1 else "物料%s总成本降低%.3f"
         #notif_same = "单位物料%s总成本未发生改变" if use_number_1==use_number_2==1 else "物料%s总成本未发生改变"
         notif_incre = "单位物料%s总成本上升%.3f," if use_number_1==use_number_2==1 else "物料%s总成本上升%.3f,"
         if cost1 > cost2:
             
-            print(notif_red%(code,diff_cost))
+            #print(notif_red%(code,diff_cost))
             return 0
         
         elif cost1 == cost2:
@@ -75,7 +75,7 @@ class CostMining(object):
             diff_value = abs(value_1 - value_2)
             
             if value_1 > value_2:
-                print("单位物料%s的%s降低%.3f"%(code,cost_stage_dic[select_object],diff_value))
+                #print("单位物料%s的%s降低%.3f"%(code,cost_stage_dic[select_object],diff_value))
                 return 0
             
             elif value_1 == value_2:
@@ -136,7 +136,7 @@ class CostMining(object):
         diff_value = abs(value_1 - value_2)
         
         if value_1 > value_2:
-            print("单位物料%s的累计总成本降低%.3f"%(code, diff_value))
+            #print("单位物料%s的累计总成本降低%.3f"%(code, diff_value))
             return 0
         
         elif value_1 == value_2:
@@ -162,7 +162,7 @@ class CostMining(object):
                '+b.labor_cost_stage+b.equip_cost_stage+b.burning_cost_stage+b.auxiliary_cost_stage+b.other_cost_stage'
                '+c.material_cost_accumulated'
                '+d.labor_cost_accumulated+d.equip_cost_accumulated+d.burning_cost_accumulated+d.auxiliary_cost_accumulated+d.other_cost_accumulated)'
-               '*e.menge * (1 + e.ausch)'
+               '*e.menge'
                ' as total_cost'
                ' from cost_material_stage a,cost_stage b,cost_material_accumulated c,cost_accumulated d,bom_relevancy e'
                ' where a.material_number="{0}" and b.material_number="{0}" and c.material_number="{0}" and d.material_number="{0}"'
@@ -207,25 +207,24 @@ class CostMining(object):
             cursor.close()
     
     #单位总成本、用量、损耗率三类判断
-    def check_unitcost_menge_ausch(self, matnr_code, version_1, version_2,use_1,use_2,lostrat_1,lostrat_2):
+    def check_unitcost_menge_ausch(self, matnr_code, version_1, version_2,use_1,use_2,lostrat_1):
         
         cost_v1 = self.cost_cat(matnr_code, version_1,1,0)#版本一物料单位总成本
         cost_v2 = self.cost_cat(matnr_code, version_2,1,0)#版本二物料单位总成本
         
         cost_inf = cost_v2 - cost_v1
-        use_inf = use_2- use_1
-        lostrat_inf = lostrat_2 - lostrat_1
-        cost_diff = (cost_v2 - cost_v1) * use_2 * (1 + lostrat_2)
-        use_diff = (use_2 - use_1) * (1 + lostrat_1) * cost_v1
-        lostrat_diff = ((1+lostrat_2) - (1+lostrat_1)) * use_2 * cost_v1
+        use_inf = use_2- use_1*(1+lostrat_1)
+        
+        cost_diff = (cost_v2 - cost_v1) * use_2 
+        use_diff = (use_2 - use_1*(1+lostrat_1)) * cost_v1
+        
         
         cost_M = self.cost_cat(matnr_code, version_1,use_1,lostrat_1)
 
         if use_diff >= cost_M * 0.03:
-            print ('物料%s在%s和%s阶段用量发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, use_inf, use_diff))
-        if lostrat_diff >= cost_M * 0.03:
-            print ('物料%s在%s和%s阶段损耗率发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, lostrat_inf, lostrat_diff))
+            print ('物料%s在%s>>>%s阶段用量发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, use_inf, use_diff))
+       
         if cost_diff >= cost_M * 0.03:
-            print ('物料%s在%s和%s阶段单位总成本发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, cost_inf, cost_diff))
+            print ('物料%s在%s>>>%s阶段单位总成本发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, cost_inf, cost_diff))
             return 1            
         return 0

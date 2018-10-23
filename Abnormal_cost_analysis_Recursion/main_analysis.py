@@ -35,22 +35,22 @@ if __name__ == "__main__":
     bsa = Bom_alteration.BomStrucAlteration(conn)
     
     ###定义递归对比
-    def finance_analysis(material,version_1,version_2,use_1,use_2,lost_1,lost_2):
+    def finance_analysis(material,version_1,version_2,use_1,use_2,lost_1):
         
-        use_total_cost = cost_mining.total_cost_check(material,version_1,version_2,use_1,use_2,lost_1,lost_2)
+        use_total_cost = cost_mining.total_cost_check(material,version_1,version_2,use_1,use_2,lost_1)
         
         if use_total_cost:
-                          
-            class_cost = cost_mining.check_unitcost_menge_ausch(material,version_1,version_2,use_1,use_2,lost_1,lost_2)
+            print('+===========================================================+')              
+            class_cost = cost_mining.check_unitcost_menge_ausch(material,version_1,version_2,use_1,use_2,lost_1)
             
             if class_cost:
-                
+                print('+___________________________________________________________+')
                 cost_mining.cost_stage_component_check(material,version_1,version_2)
                 
                 cost_accumulated_value = cost_mining.cost_accumulated_component_diff(material,version_1,version_2)
             
                 if cost_accumulated_value:
-                    
+                    print('+___________________________________________________________+')
                     bom_add,bom_same =  bsa.check(material,version_1,version_2)
                 
                     for i_code in bom_add:
@@ -60,14 +60,14 @@ if __name__ == "__main__":
                     for i_code in bom_same:
                         
                         u_1,l_1 = cost_mining.use_lost_cat(material,i_code,version_1)
-                        u_2,l_2 = cost_mining.use_lost_cat(material,i_code,version_2)
-                        
-                        finance_analysis(i_code,version_1,version_2,u_1,u_2,l_1,l_2)
+                        u_2,_ = cost_mining.use_lost_cat(material,i_code,version_2)
+                       
+                        finance_analysis(i_code,version_1,version_2,u_1,u_2,l_1)
        
     #==========================================================================
     
     ###执行
-    init_cost_result = finance_analysis(material_code,bom_version_1,bom_version_2,1,1,0,0)
+    init_cost_result = finance_analysis(material_code,bom_version_1,bom_version_2,1,1,0)
 
     conn.close()   
     
