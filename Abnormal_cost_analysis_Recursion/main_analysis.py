@@ -45,7 +45,25 @@ if __name__ == "__main__":
             
             if class_cost:
                 print('+___________________________________________________________+')
-                cost_mining.cost_stage_component_check(material,version_1,version_2)
+                #cost_mining.cost_stage_component_check(material,version_1,version_2)
+                
+                cost_stage = cost_mining.cost_stage_component_check(material, version_1, version_2)  #本材、本阶总成本（不含本材）阈值判别
+                
+                if cost_stage:    #本阶总成本（不含本材）阈值判别为1
+                    process_add, process_same = bsa.process_bom_check(material, version_1, version_2)
+                    
+                    for process_name in process_add:    #增加的工序逐个阈值判别
+                        
+                        cost_mining.process_add_check(material, process_name, version_1, version_2)
+                        
+                    for process_name in process_same:   #相同的工序逐个阈值判别
+                        
+                        pro_same = cost_mining.process_same_check(material, process_name, version_1, version_2)
+                        
+                        if pro_same:
+                            cost_mining.all_process_cost_stage_hour_rate_check(material, process_name, version_1, version_2)
+                
+                
                 
                 cost_accumulated_value = cost_mining.cost_accumulated_component_diff(material,version_1,version_2)
             

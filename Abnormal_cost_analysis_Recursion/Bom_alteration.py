@@ -37,12 +37,12 @@ class BomStrucAlteration(object):
 
     def processescat(self,code,v):
         cursor = self.conn.cursor()
-        sql = 'SELECT process_name FROM product_process_maintenance WHERE matnr = "%s" AND version_number = "%s"'%(code,v)
+        sql = 'SELECT process_name FROM product_process_maintenance WHERE main_part_number = "%s" AND version_number = "%s"'%(code,v)
         cursor.execute(sql)
         processes = set([each[0] for each in cursor.fetchall()])     
         return processes
     
-    def process_check(self,code,v1,v2):
+    def process_bom_check(self,code,v1,v2):
         processes_1 = self.processescat(code,v1)
         processes_2 = self.processescat(code,v2)
         inter = processes_1.intersection(processes_2)    #两个序列的交集
@@ -60,3 +60,5 @@ class BomStrucAlteration(object):
                 print('物料%s 阶段%s>>>%s工序增加项:'%(code,v1,v2),difference1)  
                 
         return difference1,inter
+    
+    

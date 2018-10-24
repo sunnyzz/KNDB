@@ -2,11 +2,13 @@
 
 #各字段代表的成本内涵
 cost_stage_dic={'material_cost_stage':'本阶物料成本',
-                    'labor_cost_stage':'本阶人工成本',
-                    'equip_cost_stage':'本阶设备成本',
-                    'burning_cost_stage':'本阶燃动成本',
-                    'auxiliary_cost_stage':'本阶辅助成本',
-                    'other_cost_stage':'本阶其他成本'}
+                         'labor_hour':'本阶人工成本',
+                       'machine_hour':'本阶设备成本',
+                       'burning_hour':'本阶燃动成本',
+                     'auxiliary_hour':'本阶辅助成本',
+                         'other_hour':'本阶其他成本'}
+
+
 
 class CostMining(object):
     def __init__(self,conn):
@@ -59,8 +61,8 @@ class CostMining(object):
                 print("超出阈值")
                 return 1
  
-    #本阶某成本差异对比
-    def cost_stage_component_diff(self, code, version_1, version_2, select_object, select_table):
+    #本阶材料成本差异对比
+    def cost_stage_material_diff(self, code, version_1, version_2, select_object, select_table):
         cursor = self.conn.cursor()
         sql_1 = 'select {0} from {1} where material_number = "{2}" and \
                  version_number = "{3}"'.format(select_object, select_table, code, version_1)
@@ -95,16 +97,56 @@ class CostMining(object):
             print("执行cursor.execute和fetchone语句出错！")
             
         finally:
-            cursor.close()   
+            cursor.close()
+            
+     
+    #本阶总成本（不含本材）
+    def cost_stage_total(self, code, v):
+        cursor = self.conn.cursor()
+        sql = 'select (labor_cost_stage + equip_cost_stage + burning_cost_stage + auxiliary_cost_stage + other_cost_stage) from cost_stage where material_number = "{0}" and \
+               version_number = "{1}"'.format(code, v)
+        try:
+            cursor.execute(sql)
+            value = float(cursor.fetchone()[0])
+            return value
+        except :
+            print("执行cursor.execute和fetchone语句出错！")
+            
+        finally:
+            cursor.close()
+        
+        
+        
+    #本阶总成本（不含本材）差异对比
+    def cost_stage_total_diff(self, code, version_1, version_2):
+        value_1 = self.cost_stage_total(code, version_1)
+        value_2 = self.cost_stage_total(code, version_2)
+        diff_value = abs(value_1 - value_2)
+        
+        if value_1 > value_2:
+            #print("单位物料%s的本阶总成本（不含本材）降低%.3f"%(code,diff_value))
+            return 0
+        
+        elif value_1 == value_2:
+            #print("单位物料%s的本阶总成本（不含本材）未发生改变"%(code))
+            return 0
+        
+        else:
+            print("单位物料%s的本阶总成本（不含本材）上升%.3f"%(code,diff_value), end='')
+            if diff_value < (value_1 * 0.03):
+                print("但未超出阈值")
+                return 0
+            else:
+                print("超出阈值")
+                return 1
+            
     
     #本阶各成本差异对比汇总
     def cost_stage_component_check(self,code, version_1, version_2):
-        self.cost_stage_component_diff(code, version_1, version_2, select_object = "material_cost_stage", select_table = "cost_material_stage")
-        self.cost_stage_component_diff(code, version_1, version_2, select_object = "labor_cost_stage", select_table = "cost_stage")
-        self.cost_stage_component_diff(code, version_1, version_2, select_object = "equip_cost_stage", select_table = "cost_stage")
-        self.cost_stage_component_diff(code, version_1, version_2, select_object = "burning_cost_stage", select_table = "cost_stage")
-        self.cost_stage_component_diff(code, version_1, version_2, select_object = "auxiliary_cost_stage", select_table = "cost_stage")
-        self.cost_stage_component_diff(code, version_1, version_2, select_object = "other_cost_stage", select_table = "cost_stage")
+        self.cost_stage_material_diff(code, version_1, version_2, select_object = "material_cost_stage", select_table = "cost_material_stage")
+        cost = self.cost_stage_total_diff(code, version_1, version_2)
+        return cost
+            
     
     #累计成本获取
     def cost_accumulated_component(self, code, version_number):
@@ -228,3 +270,103 @@ class CostMining(object):
             print ('物料%s在%s>>>%s阶段单位总成本发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, cost_inf, cost_diff))
             return 1            
         return 0
+    
+    
+    #单个工序总成本
+    def process_cost(self,code, process_name, v):
+        cursor = self.conn.cursor()
+
+        sql = ('SELECT'
+				   ' a.labor_hour*b.labor_hour_rate'
+				   '+a.machine_hour*b.equip_hour_rate'
+				   '+a.burning_hour*b.fuel_hour_rate'
+				   '+a.auxiliary_hour*b.auxiliary_hour_rate'
+				   '+a.other_hour*b.other_hour_rate'
+				   ' FROM product_process_maintenance a JOIN hour_rate b ON a.cost_center_code = b.cost_center_code'
+				   ' WHERE a.main_part_number="{0}" AND a.process_name="{1}" AND a.version_number="{2}"AND b.version_number="{2}"'
+				   ).format(code, process_name, v)
+        try:            
+            cursor.execute(sql)
+            proc_cost = float(cursor.fetchone()[0])
+            
+        finally:
+            cursor.close()
+        return proc_cost
+    
+    #增加的工序阈值判别
+    def process_add_check(self, code, process_name, version_1, version_2):
+        process_add_cost = self.process_cost(code, process_name, version_2)
+        cost_stage_total = self.cost_stage_total(code, version_1)
+        
+        if process_add_cost > cost_stage_total * 0.03:
+            print("物料%s的%s阶段多出工序：%s，造成本阶总成本（不含本材）上升%.3f，超出阈值"%(code, version_2, process_name, process_add_cost))
+        
+        else:
+            print("物料%s的%s阶段多出工序：%s，造成本阶总成本（不含本材）上升%.3f，但未超出阈值"%(code, version_2, process_name, process_add_cost))
+            
+            
+    #相同的工序阈值判别
+    def process_same_check(self, code, process_name, version_1, version_2):
+        process_same_cost_1 = self.process_cost(code, process_name, version_1)
+        process_same_cost_2 = self.process_cost(code, process_name, version_2)
+        cost_diff = process_same_cost_2 - process_same_cost_1
+        
+        if cost_diff > process_same_cost_1 * 0.03:
+            print("物料%s的工序：%s，%s>>>%s，造成本阶总成本（不含本材）上升%.3f，超出阈值"%(code, process_name, version_1, version_2, cost_diff))
+            return 1
+        
+        else:
+            print("物料%s的工序：%s，%s>>>%s，造成本阶总成本（不含本材）上升%.3f，但未超出阈值"%(code, process_name, version_1, version_2, cost_diff))
+            return 0
+        
+    #单个工序下本阶（人工、设备、燃动、辅料、其他）成本、工时、小时费率判别    
+    def single_process_cost_stage_hour_rate_check(self, code, process_name, version_1, version_2, select_hour, select_rate):
+        cursor = self.conn.cursor()
+        sql_1 = ('SELECT'
+				   ' a.{0}, b.{1}'				   
+				   ' FROM product_process_maintenance a JOIN hour_rate b ON a.cost_center_code = b.cost_center_code'
+				   ' WHERE a.main_part_number="{2}" AND a.process_name="{3}" AND a.version_number="{4}" AND b.version_number="{4}";'
+				   ).format(select_hour, select_rate, code, process_name, version_1)
+        sql_2 = ('SELECT'
+				   ' a.{0}, b.{1}'				   
+				   ' FROM product_process_maintenance a JOIN hour_rate b ON a.cost_center_code = b.cost_center_code'
+				   ' WHERE a.main_part_number="{2}" AND a.process_name="{3}" AND a.version_number="{4}" AND b.version_number="{4}";'
+				   ).format(select_hour, select_rate, code, process_name, version_2)
+        
+        try:
+            cursor.execute(sql_1)
+            hour_1, rate_1 = cursor.fetchone()
+            cursor.execute(sql_2)
+            hour_2, rate_2 = cursor.fetchone()
+            hour_1 = float(hour_1)
+            rate_1 = float(rate_1)
+            hour_2 = float(hour_2)
+            rate_2 = float(rate_2)
+            cost_1 = hour_1 * rate_1
+            cost_2 = hour_2 * rate_2
+            cost_diff = cost_2 - cost_1
+            
+            if cost_diff > cost_1 * 0.03:
+                print("物料%s的工序：%s  %s>>>%s  %s 上升了%.3f，超出阈值"%(code,process_name,version_1,version_2,cost_stage_dic[select_hour],cost_diff))
+                
+                rate_diff = (rate_2 - rate_1) * hour_2
+                hour_diff = (hour_2 - hour_1) * rate_1
+                
+                if rate_diff > cost_1 * 0.03:
+                    print("小时费率上升%.3f，造成成本上升了%.3f"%((rate_2-rate_1),rate_diff))
+                if hour_diff > cost_1 * 0.03:
+                    print("工时上升%.3f，造成成本上升了%.3f"%((hour_2-hour_1),hour_diff))
+                    
+            else:
+                print("物料%s的工序：%s  %s>>>%s  本阶人工成本 上升了%.3f，但未超出阈值"%(code,process_name,version_1,version_2,cost_diff))
+        finally:
+            cursor.close()
+                
+    #汇总工序下本阶（人工、设备、燃动、辅料、其他）成本、工时、小时费率判别              
+    def all_process_cost_stage_hour_rate_check(self, code, process_name, version_1, version_2):
+            self.single_process_cost_stage_hour_rate_check(code, process_name, version_1, version_2, select_hour="labor_hour", select_rate="labor_hour_rate")
+            self.single_process_cost_stage_hour_rate_check(code, process_name, version_1, version_2, select_hour="machine_hour", select_rate="equip_hour_rate")
+            self.single_process_cost_stage_hour_rate_check(code, process_name, version_1, version_2, select_hour="burning_hour", select_rate="fuel_hour_rate")
+            self.single_process_cost_stage_hour_rate_check(code, process_name, version_1, version_2, select_hour="auxiliary_hour", select_rate="auxiliary_hour_rate")
+            self.single_process_cost_stage_hour_rate_check(code, process_name, version_1, version_2, select_hour="other_hour", select_rate="other_hour_rate")
+            
