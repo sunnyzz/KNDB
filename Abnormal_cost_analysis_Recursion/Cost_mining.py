@@ -43,28 +43,18 @@ class CostMining(object):
 	def sub_total_cost_check(self,code,v1,v2,use_number_1,use_number_2,lostrat_1,lostrat_2,diff_value):
 		cost1 = self.cost_cat(code,v1,use_number_1,lostrat_1)
 		cost2 = self.cost_cat(code,v2,use_number_2,lostrat_2)
-		diff_cost = abs(cost1-cost2)
+		diff_cost = cost2-cost1
+			 
+		if diff_cost:
+			print("物料%s在%s>>>%s阶段总成本上升%.3f"%(code,v1,v2,diff_cost))
+			self.query_records_insert("2100",code,v1,v2,"1","1",cost1,cost2,diff_cost,diff_cost,"(*用量)物料总成本变化",time.strftime("%F")) 
 		
-		#notif_red = "单位物料%s总成本降低%.3f" if use_number_1==use_number_2==1 else "物料%s总成本降低%.3f"
-		#notif_same = "单位物料%s总成本未发生改变" if use_number_1==use_number_2==1 else "物料%s总成本未发生改变"
-		notif_incre = "单位物料%s总成本上升%.3f," if use_number_1==use_number_2==1 else "物料%s总成本上升%.3f,"
-		if cost1 > cost2:
+		if diff_cost < diff_value * self.weight:
 			
-			#print(notif_red%(code,diff_cost))
-			return 0
-		
-		elif cost1 == cost2:
-			#print(notif_same%code)			   
 			return 0
 		else:
-			print(notif_incre%(code,diff_cost),end='')
-			if diff_cost < diff_value * self.weight:
-				print("但未超出权重")
-				self.query_records_insert("2100",code,v1,v2,"1","1",cost1,cost2,diff_cost,diff_cost,"总成本发生变化",time.strftime("%F"))
-				return 0
-			else:
-				print("超出权重")
-				return 1
+			print("物料%s在%s>>>%s阶段总成本变化差异值超出权重，正在挖掘具体原因"%(code,v1,v2))
+			return 1
 		
 	#初始总成本对比结果
 	def total_cost_check(self,code,v1,v2,use_number_1=1,use_number_2=1,lostrat_1=0,lostrat_2=0):
@@ -72,28 +62,28 @@ class CostMining(object):
 		cost2 = self.cost_cat(code,v2,use_number_2,lostrat_2)
 		diff_cost = abs(cost1-cost2)
 		
-		#notif_red = "单位物料%s总成本降低%.3f" if use_number_1==use_number_2==1 else "物料%s总成本降低%.3f"
-		#notif_same = "单位物料%s总成本未发生改变" if use_number_1==use_number_2==1 else "物料%s总成本未发生改变"
-		notif_incre = "单位物料%s总成本上升%.3f," if use_number_1==use_number_2==1 else "物料%s总成本上升%.3f,"
-		if cost1 > cost2:
-			
-			#print(notif_red%(code,diff_cost))
+		notif_red = "单位物料%s总成本降低%.3f" 
+		notif_same = "单位物料%s总成本未发生改变" 
+		notif_incre = "单位物料%s总成本上升%.3f," 
+		if cost1 > cost2:			
+			print(notif_red%(code,diff_cost))
 			return 0
 		
 		elif cost1 == cost2:
-			#print(notif_same%code)			   
+			print(notif_same%code)			   
 			return 0
 		else:
 			print(notif_incre%(code,diff_cost),end='')
 			if (cost2-cost1) < (cost1*0.03):
-				print("但未超出阈值")
+				print("但差异值未超出阈值")
 				return 0
 			else:
-				print("超出阈值")
+				print("差异值超出阈值，正在挖掘具体原因")
+				self.query_records_insert("2100",code,v1,v2,"1","1",cost1,cost2,diff_cost,diff_cost,"查询物料总成本变化",time.strftime("%F"))
 				return 1
  
 	#本阶材料成本差异对比
-	def cost_stage_material_diff(self, code, version_1, version_2, use_diff, select_object, select_table):
+	def cost_stage_material_diff(self, code, version_1, version_2, select_object, select_table):
 		cursor = self.conn.cursor()
 		sql_1 = 'select {0} from {1} where material_number = "{2}" and \
 				 version_number = "{3}"'.format(select_object, select_table, code, version_1)
@@ -105,25 +95,11 @@ class CostMining(object):
 			value_1 = float(cursor.fetchone()[0])
 			cursor.execute(sql_2)
 			value_2 = float(cursor.fetchone()[0])
-			diff_value = abs(value_1 - value_2)
+			diff_value = value_2 - value_1
 			
-			if value_1 > value_2:
-				#print("单位物料%s的%s降低%.3f"%(code,cost_stage_dic[select_object],diff_value))
-				return 0
-			
-			elif value_1 == value_2:
-				#print("单位物料%s的%s未发生改变"%(code, select_object))
-				return 0
-			
-			else:
-				print("单位物料%s的%s上升%.3f"%(code,cost_stage_dic[select_object],diff_value), end='')
-				if diff_value < use_diff * self.weight :
-					print("但未超出权重")
-					return 0
-				else:
-					print("超出权重")
-					self.query_records_insert("2100",code,version_1,version_2,"1","1",value_1,value_2,diff_value,diff_value,"本阶材料成本发生变化",time.strftime("%F"))
-					return 1
+			if diff_value:
+				print("单位物料%s在%s>>>%s阶段%s变化:%.3f"%(code,version_1,version_2,cost_stage_dic[select_object],diff_value))
+				self.query_records_insert("2100",code,version_1,version_2,"1","1",value_1,value_2,diff_value,diff_value,"本阶材料成本变化",time.strftime("%F"))
 			
 		except :
 			print("执行cursor.execute和fetchone语句出错！")
@@ -150,34 +126,26 @@ class CostMining(object):
 		
 		
 	#本阶总成本（不含本材）差异对比
-	def cost_stage_total_diff(self, code, version_1, version_2,use_diff):
+	def cost_stage_total_diff(self, code, version_1, version_2,c_diff):
 		value_1 = self.cost_stage_total(code, version_1)
 		value_2 = self.cost_stage_total(code, version_2)
-		diff_value = abs(value_1 - value_2)
+		diff_value = value_2 - value_1
 		
-		if value_1 > value_2:
-			#print("单位物料%s的本阶总成本（不含本材）降低%.3f"%(code,diff_value))
+		if diff_value:
+			print("单位物料%s在%s>>>%s阶段本阶总成本变化:%.3f"%(code,version_1,version_2,diff_value))
+			self.query_records_insert("2100",code,version_1,version_2,"1","1",value_1,value_2,diff_value,diff_value,"本阶总成本（不含本材）变化",time.strftime("%F"))
+			
+		if diff_value < c_diff * self.weight:
 			return 0,0
-		
-		elif value_1 == value_2:
-			#print("单位物料%s的本阶总成本（不含本材）未发生改变"%(code))
-			return 0,0
-		
 		else:
-			print("单位物料%s的本阶总成本（不含本材）上升%.3f"%(code,diff_value), end='')
-			if diff_value < use_diff * self.weight:
-				print("但未超出权重")
-				self.query_records_insert("2100",code,version_1,version_2,"1","1",value_1,value_2,diff_value,diff_value,"本阶总成本（不含本材）发生变化",time.strftime("%F"))
-				return 0,0
-			else:
-				print("超出权重")
-				return 1,diff_value
+			print("单位物料%s在%s>>>%s阶段本阶总成本变化差异值超出权重,正在挖掘具体原因"%(code,version_1,version_2))
+			return 1,diff_value
 			
 	
 	#本阶各成本差异对比汇总
-	def cost_stage_component_check(self,code, version_1, version_2, use_diff):
-		self.cost_stage_material_diff(code, version_1, version_2, use_diff, select_object = "material_cost_stage", select_table = "cost_material_stage")
-		cost,diff_value = self.cost_stage_total_diff(code, version_1, version_2,use_diff)
+	def cost_stage_component_check(self,code, version_1, version_2, cost_diff):
+		self.cost_stage_material_diff(code, version_1, version_2, select_object = "material_cost_stage", select_table = "cost_material_stage")
+		cost,diff_value = self.cost_stage_total_diff(code, version_1, version_2,cost_diff)
 		return cost,diff_value
 			
 	
@@ -204,32 +172,23 @@ class CostMining(object):
 
 
 	#累计成本差异对比	
-	def cost_accumulated_component_diff(self, code, version_1, version_2,use_diff):
+	def cost_accumulated_component_diff(self, code, version_1, version_2,c_diff):
 		value_1 = self.cost_accumulated_component(code, version_1)
 		value_2 = self.cost_accumulated_component(code, version_2)
 		
-		diff_value = abs(value_1 - value_2)
+		diff_value = value_2 - value_1
 		
-		if value_1 > value_2:
-			#print("单位物料%s的累计总成本降低%.3f"%(code, diff_value))
-			return 0,0
+		if diff_value:
+			print("单位物料%s在%s>>>%s阶段的累计总成本变化:%.3f"%(code,version_1,version_2, diff_value))
+			self.query_records_insert("2100",code,version_1,version_2,"1","1",value_1,value_2,diff_value,diff_value,"单位物料累计总成本变化",time.strftime("%F"))
 		
-		elif value_1 == value_2:
-			#print("单位物料%s的累计总成本未发生改变"%(code))
-			return 0,0
-		
-		else:
-			print("单位物料%s的累计总成本上升%.3f"%(code, diff_value), end='')
-			if diff_value < use_diff * self.weight:
-				print("但未超出权重")
-				self.query_records_insert("2100",code,version_1,version_2,"1","1",value_1,value_2,diff_value,diff_value,"累计总成本",time.strftime("%F"))
-				return 0,0
-			else:
-				print("超出权重")
-				return 1,diff_value
-					
+		if diff_value < c_diff * self.weight:
 			
-		
+			return 0,0
+		else:
+			print("单位物料%s在%s>>>%s阶段的累计总成本变化差异值超出权重，正在挖掘具体原因"%(code,version_1,version_2))
+			return 1,diff_value
+	
 	#bom增加子件（用量，损耗率）总成本计算  
 	def sub_cost_total(self, sub_code, v, matnr_code):
 		cursor = self.conn.cursor()
@@ -253,17 +212,21 @@ class CostMining(object):
 			cursor.close()
 		return coca
 	
-	#bom增加子件成本判断
-	def sub_cost_total_diff_with_matnr(self, matnr_code, version_1, sub_code, version_2,diff_value):
+	#bom增加子件的成本
+	def sub_cost_total_diff_with_matnr(self, matnr_code, version_1, sub_code, version_2):
 		sub_cost = self.sub_cost_total(sub_code, version_2, matnr_code)
-		
-		
-		if sub_cost > diff_value * self.weight :
-			print("单位物料%s的%s阶段多出子件物料%s，造成累计总成本上升%.3f"%(matnr_code, version_2, sub_code, sub_cost))
+				
+		if sub_cost:
+			print("单位物料%s在%s>>>%s阶段多出子件物料%s，造成累计总成本变化%.3f"%(matnr_code, version_1,version_2, sub_code, sub_cost))
 			self.query_records_insert("2100",matnr_code,version_1,version_2,"0","1",0,sub_cost,sub_cost,sub_cost,"多出子件"+sub_code,time.strftime("%F"))
-		
-		else:
-			print("单位物料%s的%s阶段多出子件物料%s，但未超出阈值"%(matnr_code, version_2, sub_code))
+	
+	#bom减少子件的成本
+	def sub_bom_red_record(self, matnr_code, version_1, sub_code, version_2):
+		sub_cost = self.sub_cost_total(sub_code, version_2, matnr_code)
+			
+		if sub_cost:
+			print("单位物料%s在%s>>>%s阶段减少子件物料%s，造成累计总成本变化%.3f"%(matnr_code, version_1,version_2, sub_code, -sub_cost))
+			self.query_records_insert("2100",matnr_code,version_1,version_2,"1","2",sub_cost,0,-sub_cost,-sub_cost,"减少子件"+sub_code,time.strftime("%F"))	
 	
 	#子件用量、损耗率获取
 	def use_lost_cat(self, matnr_code, sub_code, version_number):
@@ -295,19 +258,20 @@ class CostMining(object):
 		cost_diff = (cost_v2 - cost_v1) * use_2*(1+lostrat_2)
 		use_diff = (use_2*(1+lostrat_2) - use_1*(1+lostrat_1)) * cost_v1
 		
-		
 		cost_M_1 = self.cost_cat(matnr_code, version_1,use_1,lostrat_1)
 		cost_M_2 = self.cost_cat(matnr_code, version_2,use_2,lostrat_2)
-
-		if use_diff >= (cost_M_2 - cost_M_1) * self.weight :
-			print ('物料%s在%s>>>%s阶段用量发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, use_inf, use_diff))			 
-			self.query_records_insert("2100",matnr_code,version_1,version_2,"1","1",use_1*(1+lostrat_1),use_2*(1+lostrat_2),use_inf,use_diff,"用量(损耗率)发生变化",time.strftime("%F"))
-	   
+		
+		if use_inf :
+			print ('物料%s在%s>>>%s阶段用量变化:%.3f，总成本变化:%.3f'%(matnr_code, version_1, version_2, use_inf, use_diff))			 
+			self.query_records_insert("2100",matnr_code,version_1,version_2,"1","1",use_1*(1+lostrat_1),use_2*(1+lostrat_2),use_inf,use_diff,"物料用量(损耗率)变化",time.strftime("%F"))
+		if cost_inf:
+			print ('物料%s在%s>>>%s阶段单位总成本变化:%.3f，总成本变化:%.3f'%(matnr_code, version_1, version_2, cost_inf, cost_diff))
+			self.query_records_insert("2100",matnr_code,version_1,version_2,"1","1",cost_v1,cost_v2,cost_inf,cost_diff,"单位物料总成本变化",time.strftime("%F"))
+		
 		if cost_diff >= (cost_M_2 - cost_M_1) * self.weight :
-			print ('物料%s在%s>>>%s阶段单位总成本发生变化，上升%.3f，总成本增加%.3f'%(matnr_code, version_1, version_2, cost_inf, cost_diff))
-			return 1,use_diff
-		else :
-			self.query_records_insert("2100",matnr_code,version_1,version_2,"1","1",cost_v1,cost_v2,cost_inf,cost_diff,"单位总成本发生变化",time.strftime("%F"))
+			print ('物料%s在%s>>>%s阶段单位总成本变化差异值超出权值，正在挖掘具体原因'%(matnr_code, version_1, version_2))
+			return 1,cost_diff
+		
 		return 0,0
 	
 	
@@ -332,19 +296,19 @@ class CostMining(object):
 			cursor.close()
 		return proc_cost
 	
-	#增加的工序阈值判别
-	def process_add_check(self, code, process_name, version_1, version_2,diff_value):
+	#增加的工序成本
+	def process_add_check(self, code, process_name, version_1, version_2):
 		process_add_cost = self.process_cost(code, process_name, version_2)
 		
+		print("物料%s在%s阶段多出工序：%s，造成本阶总成本变化%.3f"%(code, version_2, process_name, process_add_cost))
+		self.query_records_insert("2100",code,version_1,version_2,"0","1",0,process_add_cost,process_add_cost,process_add_cost,"增加工序"+process_name,time.strftime("%F"))
+
+	#减少的工序成本降低记录
+	def process_red_record(self, code, process_name, version_1, version_2):
+		process_red_cost = self.process_cost(code, process_name, version_2)
 		
-		
-		if process_add_cost > diff_value * self.weight:
-			print("物料%s的%s阶段多出工序：%s，造成本阶总成本（不含本材）上升%.3f，超出权重"%(code, version_2, process_name, process_add_cost))
-			self.query_records_insert("2100",code,version_1,version_2,"0","1",0,process_add_cost,process_add_cost,process_add_cost,"增加工序"+process_name,time.strftime("%F"))
-		
-		else:
-			#print("物料%s的%s阶段多出工序：%s，造成本阶总成本（不含本材）上升%.3f，但未超出阈值"%(code, version_2, process_name, process_add_cost))
-			pass
+		print("物料%s在%s阶段减少工序：%s，造成本阶总成本变化%.3f"%(code, version_2, process_name, -process_red_cost))
+		self.query_records_insert("2100",code,version_1,version_2,"1","0",process_red_cost,0,-process_red_cost,-process_red_cost,"减少工序"+process_name,time.strftime("%F"))	
 			
 	#相同的工序阈值判别
 	def process_same_check(self, code, process_name, version_1, version_2,diff_value):
@@ -352,13 +316,16 @@ class CostMining(object):
 		process_same_cost_2 = self.process_cost(code, process_name, version_2)
 		cost_diff = process_same_cost_2 - process_same_cost_1
 		
+		if cost_diff:
+			print("物料%s的工序：%s，在%s>>>%s阶段费用总成本（不含本材）变化%.3f"%(code, process_name, version_1, version_2, cost_diff))
+			self.query_records_insert("2100",code,version_1,version_2,"1","1",process_same_cost_1,process_same_cost_2,cost_diff,cost_diff,"工序"+process_name+"的费用总成本发生变化",time.strftime("%F"))
+			
 		if cost_diff > diff_value * self.weight :
-			print("物料%s的工序：%s，%s>>>%s，造成本阶总成本（不含本材）上升%.3f，超出权重"%(code, process_name, version_1, version_2, cost_diff))
+			print("物料%s的工序：%s，在%s>>>%s阶段费用总成本（不含本材）变化差异值超出权重，正在挖掘具体原因"%(code, process_name, version_1, version_2))
 			return 1,cost_diff
 		
 		else:
-			self.query_records_insert("2100",code,version_1,version_2,"1","1",process_same_cost_1,process_same_cost_2,cost_diff,cost_diff,"工序"+process_name+"发生变化",time.strftime("%F"))
-			#print("物料%s的工序：%s，%s>>>%s，造成本阶总成本（不含本材）上升%.3f，但未超出阈值"%(code, process_name, version_1, version_2, cost_diff))
+			print("物料%s的工序：%s，在%s>>>%s阶段费用总成本（不含本材）变化差异值未超出权重"%(code, process_name, version_1, version_2))
 			return 0,0
 		
 	#单个工序下本阶（人工、设备、燃动、辅料、其他）成本、工时、小时费率判别	
@@ -388,22 +355,23 @@ class CostMining(object):
 			cost_2 = hour_2 * rate_2
 			cost_diff = cost_2 - cost_1
 			
+			if cost_diff:
+				print("物料%s的工序：%s 在%s>>>%s阶段，%s变化%.3f"%(code,process_name,version_1,version_2,cost_stage_dic[select_hour],cost_diff))
+				self.query_records_insert("2100",code,version_1,version_2,"1","1",cost_1,cost_2,cost_diff,cost_diff,"工序"+process_name+cost_stage_dic[select_hour]+"发生变化",time.strftime("%F"))
+			
 			if cost_diff > process_cost_diff * self.weight:
-				print("物料%s的工序：%s  %s>>>%s	%s 上升了%.3f，超出权重"%(code,process_name,version_1,version_2,cost_stage_dic[select_hour],cost_diff))
+				print("物料%s的工序：%s 在%s>>>%s阶段，%s变化差异值超出权重，正在挖掘具体原因"%(code,process_name,version_1,version_2,cost_stage_dic[select_hour]))
 				
 				rate_diff = (rate_2 - rate_1) * hour_2
 				hour_diff = (hour_2 - hour_1) * rate_1
 				
-				if rate_diff > cost_diff * self.weight:
-					print("小时费率上升%.3f，造成成本上升了%.3f"%((rate_2-rate_1),rate_diff))
+				if rate_diff:
+					print("物料%s的工序：%s 在%s>>>%s阶段，小时费率变化%.3f，造成成本变化%.3f"%(code,process_name,version_1,version_2,(rate_2-rate_1),rate_diff))
 					self.query_records_insert("2100",code,version_1,version_2,"1","1",rate_1,rate_2,rate_2-rate_1,rate_diff,"工序"+process_name+cost_stage_dic[select_hour]+"小时费率发生变化",time.strftime("%F"))
-				if hour_diff > cost_diff * self.weight:
-					print("工时上升%.3f，造成成本上升了%.3f"%((hour_2-hour_1),hour_diff))
+				if hour_diff:
+					print("物料%s的工序：%s 在%s>>>%s阶段，工时变化%.3f，造成成本变化%.3f"%(code,process_name,version_1,version_2,(hour_2-hour_1),hour_diff))
 					self.query_records_insert("2100",code,version_1,version_2,"1","1",hour_1,hour_2,hour_2-hour_1,hour_diff,"工序"+process_name+cost_stage_dic[select_hour]+"工时发生变化",time.strftime("%F"))
-					
-			else:
-				#print("物料%s的工序：%s	%s>>>%s	 本阶人工成本 上升了%.3f，但未超出阈值"%(code,process_name,version_1,version_2,cost_diff))
-				self.query_records_insert("2100",code,version_1,version_2,"1","1",cost_1,cost_2,cost_diff,cost_diff,"工序"+process_name+cost_stage_dic[select_hour]+"发生变化",time.strftime("%F"))
+							
 		finally:
 			cursor.close()
 				
@@ -425,7 +393,7 @@ class CostMining(object):
 																										 actual_value,diff_value,diff_cost,cause,query_time)
 		try:
 			
-			cursor.execute(sql)
+		    cursor.execute(sql)
 			#self.conn.commit()
 		except :
 			print("执行cursor.execute和fetchone语句出错！")
